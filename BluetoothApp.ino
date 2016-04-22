@@ -9,6 +9,7 @@
 #define INCOMING_DATA_BUFFER_SIZE (20)
 #define INCOMING_DATA_COMMAND_SIZE (15)
 #define COMMAND_SEPARATOR ':'
+#define BLE_PAYLOAD_SIZE_MAX (20)
 
 #define PERSONALITY_REQUEST_COMMAND "PERS"
 
@@ -39,6 +40,8 @@ static InputPin activeGpioInputPins[] = {
   { 2, INPUT_INACTIVE },
   { 3, INPUT_INACTIVE },
   { 5, INPUT_INACTIVE },
+  { 10, INPUT_INACTIVE }
+//  { 11, INPUT_INACTIVE }
 };
 
 static OutputPin activeGpioOutputPins[] = {
@@ -46,9 +49,7 @@ static OutputPin activeGpioOutputPins[] = {
   { 6 },
   { 9 },
   { 13 },
-  { 12 },
-  { 11 },
-  { 10 }
+  { 12 }
 };
 
 void setGpioInputs()
@@ -162,7 +163,7 @@ void ProvideGPIOInputPersonalityDetails()
   byteCount += mySerial.print(':');
   for (char i = 0; i < NUMBER_OF_ACTIVE_GPIO_INPUT_PINS; i++)
   {
-    if (byteCount == 20) //When message buffer overflow happens, send the message header again
+    if (byteCount == BLE_PAYLOAD_SIZE_MAX) //When message buffer overflow happens, send the message header again
     {
       byteCount = 0;
       byteCount += mySerial.print(GPIO_OUTPUT_PINS_AVAILABLE_RESPONSE_COMMAND);
@@ -170,9 +171,13 @@ void ProvideGPIOInputPersonalityDetails()
       byteCount += mySerial.print(':');
     }
     byteCount += mySerial.print(activeGpioInputPins[i].number);
-    if (i < NUMBER_OF_ACTIVE_GPIO_INPUT_PINS - 1)
+    if ((i < NUMBER_OF_ACTIVE_GPIO_INPUT_PINS - 1) && (i != BLE_PAYLOAD_SIZE_MAX - 1))
     {
       byteCount += mySerial.print(',');
+    }
+    else
+    {
+      byteCount += mySerial.print("");
     }
   }
 }
@@ -186,7 +191,7 @@ void ProvideGPIOOutputPersonalityDetails()
   byteCount += mySerial.print(':');
   for (char i = 0; i < NUMBER_OF_ACTIVE_GPIO_OUTPUT_PINS; i++)
   {
-    if (byteCount == 20) //When message buffer overflow happens, send the message header again
+    if (byteCount == BLE_PAYLOAD_SIZE_MAX) //When message buffer overflow happens, send the message header again
     {
       byteCount = 0;
       byteCount += mySerial.print(GPIO_OUTPUT_PINS_AVAILABLE_RESPONSE_COMMAND);
@@ -194,13 +199,15 @@ void ProvideGPIOOutputPersonalityDetails()
       byteCount += mySerial.print(':');
     }
     byteCount += mySerial.print(activeGpioOutputPins[i].number);
-    if (i < NUMBER_OF_ACTIVE_GPIO_OUTPUT_PINS - 1)
+    if ((i < NUMBER_OF_ACTIVE_GPIO_OUTPUT_PINS - 1) && (i != BLE_PAYLOAD_SIZE_MAX - 1))
     {
       byteCount += mySerial.print(',');
     }
+    else
+    {
+      byteCount += mySerial.print("");
+    }
   }
-  Serial.print("Bytes Sent = ");
-  Serial.println(byteCount, DEC);
 }
 
 void processIncomingData()
