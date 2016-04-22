@@ -12,8 +12,8 @@
 
 #define PERSONALITY_REQUEST_COMMAND "PERS"
 
-#define GPIO_INTPUT_PINS_AVAILABLE_RESPONSE_COMMAND "PERS:GPIO:INPUT:"
-#define GPIO_OUTPUT__PINS_AVAILABLE_RESPONSE_COMMAND "PERS:GPIO:OUTPUT:"
+#define GPIO_INTPUT_PINS_AVAILABLE_RESPONSE_COMMAND "PERS:IN:"
+#define GPIO_OUTPUT_PINS_AVAILABLE_RESPONSE_COMMAND "PERS:OUT:"
 #define PWM_PINS_AVAILABLE_RESPONSE_COMMAND "PERS:PWM:"
 #define PWM_PINS_AVAILABLE_RESPONSE_COMMAND "PERS:ADC:"
 
@@ -30,17 +30,25 @@ typedef struct
   uint8_t lastState;
 } InputPin;
 
+typedef struct
+{
+  uint8_t number;
+} OutputPin;
+
 static InputPin activeGpioInputPins[] = {
   { 2, INPUT_INACTIVE },
   { 3, INPUT_INACTIVE },
   { 5, INPUT_INACTIVE },
 };
 
-static const char activeGpioOutputPins[] = {
-  4,
-  6,
-  9,
-  13
+static OutputPin activeGpioOutputPins[] = {
+  { 4 },
+  { 6 },
+  { 9 },
+  { 13 },
+  { 12 },
+  { 11 },
+  { 10 }
 };
 
 void setGpioInputs()
@@ -55,18 +63,12 @@ void setGpioOutputs()
 {
   for (char i = 0; i < NUMBER_OF_ACTIVE_GPIO_OUTPUT_PINS; i++)
   {
-    pinMode(activeGpioOutputPins[i], OUTPUT);
+    pinMode(activeGpioOutputPins[i].number, OUTPUT);
   }
 }
 
 void SendGPIOInputState(uint8_t pinNumber, bool state)
 {
-  //  Serial.print("GPIO:");
-  //  Serial.print("INPUT:");
-  //  Serial.print(pinNumber);
-  //  Serial.print(":");
-  //  Serial.print(state);
-  //
   mySerial.print("GPIO:");
   mySerial.print("INPUT:");
   mySerial.print(pinNumber);
@@ -151,11 +153,64 @@ void clearIncomingDataCommandBuffer()
   }
 }
 
+void ProvideGPIOInputPersonalityDetails()
+{
+  char byteCount;
+
+  byteCount += mySerial.print(GPIO_INTPUT_PINS_AVAILABLE_RESPONSE_COMMAND);
+  byteCount += mySerial.print(NUMBER_OF_ACTIVE_GPIO_INPUT_PINS);
+  byteCount += mySerial.print(':');
+  for (char i = 0; i < NUMBER_OF_ACTIVE_GPIO_INPUT_PINS; i++)
+  {
+    if (byteCount == 20) //When message buffer overflow happens, send the message header again
+    {
+      byteCount = 0;
+      byteCount += mySerial.print(GPIO_OUTPUT_PINS_AVAILABLE_RESPONSE_COMMAND);
+      byteCount += mySerial.print(NUMBER_OF_ACTIVE_GPIO_OUTPUT_PINS);
+      byteCount += mySerial.print(':');
+    }
+    byteCount += mySerial.print(activeGpioInputPins[i].number);
+    if (i < NUMBER_OF_ACTIVE_GPIO_INPUT_PINS - 1)
+    {
+      byteCount += mySerial.print(',');
+    }
+  }
+}
+
+void ProvideGPIOOutputPersonalityDetails()
+{
+  char byteCount;
+
+  byteCount += mySerial.print(GPIO_OUTPUT_PINS_AVAILABLE_RESPONSE_COMMAND);
+  byteCount += mySerial.print(NUMBER_OF_ACTIVE_GPIO_OUTPUT_PINS);
+  byteCount += mySerial.print(':');
+  for (char i = 0; i < NUMBER_OF_ACTIVE_GPIO_OUTPUT_PINS; i++)
+  {
+    if (byteCount == 20) //When message buffer overflow happens, send the message header again
+    {
+      byteCount = 0;
+      byteCount += mySerial.print(GPIO_OUTPUT_PINS_AVAILABLE_RESPONSE_COMMAND);
+      byteCount += mySerial.print(NUMBER_OF_ACTIVE_GPIO_OUTPUT_PINS);
+      byteCount += mySerial.print(':');
+    }
+    byteCount += mySerial.print(activeGpioOutputPins[i].number);
+    if (i < NUMBER_OF_ACTIVE_GPIO_OUTPUT_PINS - 1)
+    {
+      byteCount += mySerial.print(',');
+    }
+  }
+  Serial.print("Bytes Sent = ");
+  Serial.println(byteCount, DEC);
+}
+
 void processIncomingData()
 {
   if (!strcmp(personalityRequestCommand, incomingDataCommand))
   {
     Serial.println("The commands are equal");
+    ProvideGPIOInputPersonalityDetails();
+    delay(10);
+    ProvideGPIOOutputPersonalityDetails();
   }
 }
 
@@ -187,10 +242,6 @@ void loop() // run over and over
   {
     saveIncomingData();
     extractCommand();
-    
-
-
-
 
     processIncomingData();
     clearIncomingDataBuffer();
