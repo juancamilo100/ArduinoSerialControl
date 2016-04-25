@@ -13,7 +13,7 @@
 
 #define PERSONALITY_REQUEST_COMMAND "PERS"
 
-#define GPIO_INTPUT_PINS_AVAILABLE_RESPONSE_COMMAND "PERS:IN:"
+#define GPIO_INTPUT_PINS_AVAILABLE_RESPONSE_COMMAND "PERS:INP:"
 #define GPIO_OUTPUT_PINS_AVAILABLE_RESPONSE_COMMAND "PERS:OUT:"
 #define PWM_PINS_AVAILABLE_RESPONSE_COMMAND "PERS:PWM:"
 #define PWM_PINS_AVAILABLE_RESPONSE_COMMAND "PERS:ADC:"
@@ -37,19 +37,22 @@ typedef struct
 } OutputPin;
 
 static InputPin activeGpioInputPins[] = {
-  { 2, INPUT_INACTIVE },
+  { 6, INPUT_INACTIVE }, 
   { 3, INPUT_INACTIVE },
   { 5, INPUT_INACTIVE },
-  { 10, INPUT_INACTIVE }
-//  { 11, INPUT_INACTIVE }
+  { 10, INPUT_INACTIVE },
+  { 4, INPUT_INACTIVE },
+  { 12, INPUT_INACTIVE },
+  
 };
 
 static OutputPin activeGpioOutputPins[] = {
-  { 4 },
-  { 6 },
+  { 2 },
+  { 11 },
   { 9 },
-  { 13 },
-  { 12 }
+  { 13 }
+//  { 12 },
+//  { 11 }
 };
 
 void setGpioInputs()
@@ -156,18 +159,20 @@ void clearIncomingDataCommandBuffer()
 
 void ProvideGPIOInputPersonalityDetails()
 {
-  char byteCount;
+  uint8_t byteCount = 0;
 
   byteCount += mySerial.print(GPIO_INTPUT_PINS_AVAILABLE_RESPONSE_COMMAND);
   byteCount += mySerial.print(NUMBER_OF_ACTIVE_GPIO_INPUT_PINS);
   byteCount += mySerial.print(':');
-  for (char i = 0; i < NUMBER_OF_ACTIVE_GPIO_INPUT_PINS; i++)
+  for (uint8_t i = 0; i < NUMBER_OF_ACTIVE_GPIO_INPUT_PINS; i++)
   {
-    if (byteCount == BLE_PAYLOAD_SIZE_MAX) //When message buffer overflow happens, send the message header again
+//    Serial.print("BYTE COUNT: ");
+//    Serial.println(byteCount);
+    if (byteCount >= BLE_PAYLOAD_SIZE_MAX) //When message buffer overflow happens, send the message header again
     {
       byteCount = 0;
-      byteCount += mySerial.print(GPIO_OUTPUT_PINS_AVAILABLE_RESPONSE_COMMAND);
-      byteCount += mySerial.print(NUMBER_OF_ACTIVE_GPIO_OUTPUT_PINS);
+      byteCount += mySerial.print(GPIO_INTPUT_PINS_AVAILABLE_RESPONSE_COMMAND);
+      byteCount += mySerial.print(NUMBER_OF_ACTIVE_GPIO_INPUT_PINS);
       byteCount += mySerial.print(':');
     }
     byteCount += mySerial.print(activeGpioInputPins[i].number);
@@ -214,7 +219,7 @@ void processIncomingData()
 {
   if (!strcmp(personalityRequestCommand, incomingDataCommand))
   {
-    Serial.println("The commands are equal");
+//    Serial.println("The commands are equal");
     ProvideGPIOInputPersonalityDetails();
     delay(10);
     ProvideGPIOOutputPersonalityDetails();
