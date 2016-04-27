@@ -2,6 +2,12 @@
 #include <SoftwareSerial.h>
 #include <string.h>
 
+/* BLE PROTOCOL:
+ *  Personality: PERS:PeripheralType:
+ *  GPIO Input Update: GPIO:INPUT:PinNumber:State
+ *  GPIO Output Update:
+ */
+
 #define INPUT_ACTIVE (1)
 #define INPUT_INACTIVE (0)
 #define NUMBER_OF_ACTIVE_GPIO_INPUT_PINS (sizeof(activeGpioInputPins)/sizeof(activeGpioInputPins[0]))
@@ -12,6 +18,8 @@
 #define BLE_PAYLOAD_SIZE_MAX (20)
 
 #define PERSONALITY_REQUEST_COMMAND "PERS"
+#define DIGITAL_OUTPUT_UPDATE_COMMAND "OUT"
+#define DIGITAL_INPUT_UPDATE_COMMAND "OUT"
 
 #define GPIO_INTPUT_PINS_AVAILABLE_RESPONSE_COMMAND "PERS:INP:"
 #define GPIO_OUTPUT_PINS_AVAILABLE_RESPONSE_COMMAND "PERS:OUT:"
@@ -21,9 +29,11 @@
 SoftwareSerial mySerial(7, 8); // RX, TX
 
 static char *personalityRequestCommand = PERSONALITY_REQUEST_COMMAND;
+static char *digitalOutputUpdateCommand = DIGITAL_OUTPUT_UPDATE_COMMAND;
 
 static char incomingData[INCOMING_DATA_BUFFER_SIZE];
 static char incomingDataCommand[INCOMING_DATA_COMMAND_SIZE];
+static char payloadData[INCOMING_DATA_BUFFER_SIZE];
 
 typedef struct
 {
@@ -37,13 +47,13 @@ typedef struct
 } OutputPin;
 
 static InputPin activeGpioInputPins[] = {
-  { 6, INPUT_INACTIVE }, 
+  { 6, INPUT_INACTIVE },
   { 3, INPUT_INACTIVE },
   { 5, INPUT_INACTIVE },
   { 10, INPUT_INACTIVE },
   { 4, INPUT_INACTIVE },
   { 12, INPUT_INACTIVE },
-  
+
 };
 
 static OutputPin activeGpioOutputPins[] = {
@@ -51,8 +61,8 @@ static OutputPin activeGpioOutputPins[] = {
   { 11 },
   { 9 },
   { 13 }
-//  { 12 },
-//  { 11 }
+  //  { 12 },
+  //  { 11 }
 };
 
 void setGpioInputs()
@@ -103,8 +113,8 @@ void saveIncomingData()
     incomingDataIndex++;
     delay(5);
   }
-  Serial.print("The complete data is: ");
-  Serial.println(incomingData);
+  //  Serial.print("The complete data is: ");
+  //  Serial.println(incomingData);
 }
 
 uint8_t getNumberOfParams()
@@ -141,6 +151,79 @@ void extractCommand()
   }
 }
 
+void extractPayloadData(uint8_t dataIndex)
+{
+  char currentCharacter;
+  uint8_t indexCounter = 0;
+
+  for (uint8_t index = 0; index < INCOMING_DATA_BUFFER_SIZE - 1; index++)
+  {
+    currentCharacter = incomingData[index];
+
+    if (indexCounter == dataIndex)
+    {
+      for (uint8_t targetDataIndex = 0; targetDataIndex < INCOMING_DATA_BUFFER_SIZE - 1; targetDataIndex++)
+      {
+        currentCharacter = incomingData[index];
+
+        if (currentCharacter == COMMAND_SEPARATOR)
+        {
+          
+          payloadData[targetDataIndex] = '\0';
+          
+          Serial.print(atoi(payloadData));
+          Serial.println("");
+
+          Serial.println("Return!");
+          goto end_nested_loop;
+        }
+        //        Serial.println(incomingData[targetDataIndex]);
+        payloadData[targetDataIndex] = incomingData[index];
+        index++;
+      }
+    }
+
+    if (currentCharacter == COMMAND_SEPARATOR)
+    {
+      indexCounter++;
+    }
+  }
+end_nested_loop: return;
+}
+
+uint8_t concatenate(uint8_t x, uint8_t y) {
+
+  Serial.print("x = ");
+  Serial.write(x);
+  Serial.println("");
+  
+  Serial.print("2 * x = ");
+  uint8_t mult = x * 2;
+  
+  if(mult == 2)
+  {
+    Serial.println("It is CORRECT!");
+  }
+  
+  Serial.print(mult);
+  Serial.println("");
+
+  if(y == 3)
+  {
+    Serial.println("Y is CORRECT!");
+  } 
+  Serial.print("y = ");
+  Serial.write(y);
+  Serial.println("");
+  
+  uint8_t z = x + y;
+  Serial.print("x + y = ");
+  Serial.print(z);
+  Serial.println("");
+
+  return 1;
+}
+
 void clearIncomingDataBuffer()
 {
   for (uint8_t i = 0; i < INCOMING_DATA_BUFFER_SIZE; i++)
@@ -166,8 +249,8 @@ void ProvideGPIOInputPersonalityDetails()
   byteCount += mySerial.print(':');
   for (uint8_t i = 0; i < NUMBER_OF_ACTIVE_GPIO_INPUT_PINS; i++)
   {
-//    Serial.print("BYTE COUNT: ");
-//    Serial.println(byteCount);
+    //    Serial.print("BYTE COUNT: ");
+    //    Serial.println(byteCount);
     if (byteCount >= BLE_PAYLOAD_SIZE_MAX) //When message buffer overflow happens, send the message header again
     {
       byteCount = 0;
@@ -219,10 +302,13 @@ void processIncomingData()
 {
   if (!strcmp(personalityRequestCommand, incomingDataCommand))
   {
-//    Serial.println("The commands are equal");
     ProvideGPIOInputPersonalityDetails();
     delay(10);
     ProvideGPIOOutputPersonalityDetails();
+  }
+  else if (!strcmp(digitalOutputUpdateCommand, incomingDataCommand))
+  {
+    Serial.println("Got GPIO Output update command");
   }
 }
 
@@ -254,8 +340,9 @@ void loop() // run over and over
   {
     saveIncomingData();
     extractCommand();
-
+    extractPayloadData(1);
     processIncomingData();
+
     clearIncomingDataBuffer();
     clearIncomingDataCommandBuffer();
   }
