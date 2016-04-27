@@ -151,7 +151,7 @@ void extractCommand()
   }
 }
 
-void extractPayloadData(uint8_t dataIndex)
+uint8_t extractPayloadData(uint8_t dataIndex)
 {
   char currentCharacter;
   uint8_t indexCounter = 0;
@@ -171,13 +171,13 @@ void extractPayloadData(uint8_t dataIndex)
           
           payloadData[targetDataIndex] = '\0';
           
-          Serial.print(atoi(payloadData));
-          Serial.println("");
-
-          Serial.println("Return!");
+//          Serial.print(atoi(payloadData));
+//          Serial.println("");
+//
+//          Serial.println("Return!");
+          
           goto end_nested_loop;
         }
-        //        Serial.println(incomingData[targetDataIndex]);
         payloadData[targetDataIndex] = incomingData[index];
         index++;
       }
@@ -188,40 +188,7 @@ void extractPayloadData(uint8_t dataIndex)
       indexCounter++;
     }
   }
-end_nested_loop: return;
-}
-
-uint8_t concatenate(uint8_t x, uint8_t y) {
-
-  Serial.print("x = ");
-  Serial.write(x);
-  Serial.println("");
-  
-  Serial.print("2 * x = ");
-  uint8_t mult = x * 2;
-  
-  if(mult == 2)
-  {
-    Serial.println("It is CORRECT!");
-  }
-  
-  Serial.print(mult);
-  Serial.println("");
-
-  if(y == 3)
-  {
-    Serial.println("Y is CORRECT!");
-  } 
-  Serial.print("y = ");
-  Serial.write(y);
-  Serial.println("");
-  
-  uint8_t z = x + y;
-  Serial.print("x + y = ");
-  Serial.print(z);
-  Serial.println("");
-
-  return 1;
+end_nested_loop: return atoi(payloadData);
 }
 
 void clearIncomingDataBuffer()
@@ -308,7 +275,8 @@ void processIncomingData()
   }
   else if (!strcmp(digitalOutputUpdateCommand, incomingDataCommand))
   {
-    Serial.println("Got GPIO Output update command");
+    Serial.print("Got GPIO Output update command with value: ");
+    Serial.println(extractPayloadData(1));
   }
 }
 
@@ -340,7 +308,6 @@ void loop() // run over and over
   {
     saveIncomingData();
     extractCommand();
-    extractPayloadData(1);
     processIncomingData();
 
     clearIncomingDataBuffer();
