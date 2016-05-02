@@ -21,12 +21,15 @@
 #define DIGITAL_OUTPUT_UPDATE_COMMAND "OUT"
 #define DIGITAL_INPUT_UPDATE_COMMAND "OUT"
 
+#define DIGITAL_OUTPUT_UPDATE_COMMAND_PIN_INDEX (1)
+#define DIGITAL_OUTPUT_UPDATE_COMMAND_STATE_INDEX (2)
+
 #define GPIO_INTPUT_PINS_AVAILABLE_RESPONSE_COMMAND "PERS:INP:"
 #define GPIO_OUTPUT_PINS_AVAILABLE_RESPONSE_COMMAND "PERS:OUT:"
 #define PWM_PINS_AVAILABLE_RESPONSE_COMMAND "PERS:PWM:"
 #define PWM_PINS_AVAILABLE_RESPONSE_COMMAND "PERS:ADC:"
 
-SoftwareSerial mySerial(7, 8); // RX, TX
+SoftwareSerial bleSerial(7, 8); // RX, TX
 
 static char *personalityRequestCommand = PERSONALITY_REQUEST_COMMAND;
 static char *digitalOutputUpdateCommand = DIGITAL_OUTPUT_UPDATE_COMMAND;
@@ -61,8 +64,6 @@ static OutputPin activeGpioOutputPins[] = {
   { 11 },
   { 9 },
   { 13 }
-  //  { 12 },
-  //  { 11 }
 };
 
 void setGpioInputs()
@@ -83,11 +84,11 @@ void setGpioOutputs()
 
 void SendGPIOInputState(uint8_t pinNumber, bool state)
 {
-  mySerial.print("GPIO:");
-  mySerial.print("INPUT:");
-  mySerial.print(pinNumber);
-  mySerial.print(":");
-  mySerial.print(state);
+  bleSerial.print("GPIO:");
+  bleSerial.print("INPUT:");
+  bleSerial.print(pinNumber);
+  bleSerial.print(":");
+  bleSerial.print(state);
 }
 
 void monitorInputPins()
@@ -107,14 +108,12 @@ void monitorInputPins()
 void saveIncomingData()
 {
   char incomingDataIndex = 0;
-  while (mySerial.available() > 0)
+  while (bleSerial.available() > 0)
   {
-    incomingData[incomingDataIndex] = mySerial.read();
+    incomingData[incomingDataIndex] = bleSerial.read();
     incomingDataIndex++;
     delay(5);
   }
-  //  Serial.print("The complete data is: ");
-  //  Serial.println(incomingData);
 }
 
 uint8_t getNumberOfParams()
@@ -124,12 +123,9 @@ uint8_t getNumberOfParams()
   {
     if (incomingData[i] == COMMAND_SEPARATOR)
     {
-      Serial.println("Got a param!");
       paramCounter++;
     }
   }
-  Serial.print("The number of params is: ");
-  Serial.println(paramCounter, DEC);
   return paramCounter;
 }
 
@@ -168,14 +164,7 @@ uint8_t extractPayloadData(uint8_t dataIndex)
 
         if (currentCharacter == COMMAND_SEPARATOR)
         {
-          
-          payloadData[targetDataIndex] = '\0';
-          
-//          Serial.print(atoi(payloadData));
-//          Serial.println("");
-//
-//          Serial.println("Return!");
-          
+          payloadData[targetDataIndex] = '\0'; 
           goto end_nested_loop;
         }
         payloadData[targetDataIndex] = incomingData[index];
@@ -211,28 +200,26 @@ void ProvideGPIOInputPersonalityDetails()
 {
   uint8_t byteCount = 0;
 
-  byteCount += mySerial.print(GPIO_INTPUT_PINS_AVAILABLE_RESPONSE_COMMAND);
-  byteCount += mySerial.print(NUMBER_OF_ACTIVE_GPIO_INPUT_PINS);
-  byteCount += mySerial.print(':');
+  byteCount += bleSerial.print(GPIO_INTPUT_PINS_AVAILABLE_RESPONSE_COMMAND);
+  byteCount += bleSerial.print(NUMBER_OF_ACTIVE_GPIO_INPUT_PINS);
+  byteCount += bleSerial.print(':');
   for (uint8_t i = 0; i < NUMBER_OF_ACTIVE_GPIO_INPUT_PINS; i++)
   {
-    //    Serial.print("BYTE COUNT: ");
-    //    Serial.println(byteCount);
     if (byteCount >= BLE_PAYLOAD_SIZE_MAX) //When message buffer overflow happens, send the message header again
     {
       byteCount = 0;
-      byteCount += mySerial.print(GPIO_INTPUT_PINS_AVAILABLE_RESPONSE_COMMAND);
-      byteCount += mySerial.print(NUMBER_OF_ACTIVE_GPIO_INPUT_PINS);
-      byteCount += mySerial.print(':');
+      byteCount += bleSerial.print(GPIO_INTPUT_PINS_AVAILABLE_RESPONSE_COMMAND);
+      byteCount += bleSerial.print(NUMBER_OF_ACTIVE_GPIO_INPUT_PINS);
+      byteCount += bleSerial.print(':');
     }
-    byteCount += mySerial.print(activeGpioInputPins[i].number);
+    byteCount += bleSerial.print(activeGpioInputPins[i].number);
     if ((i < NUMBER_OF_ACTIVE_GPIO_INPUT_PINS - 1) && (i != BLE_PAYLOAD_SIZE_MAX - 1))
     {
-      byteCount += mySerial.print(',');
+      byteCount += bleSerial.print(',');
     }
     else
     {
-      byteCount += mySerial.print("");
+      byteCount += bleSerial.print("");
     }
   }
 }
@@ -241,42 +228,51 @@ void ProvideGPIOOutputPersonalityDetails()
 {
   char byteCount;
 
-  byteCount += mySerial.print(GPIO_OUTPUT_PINS_AVAILABLE_RESPONSE_COMMAND);
-  byteCount += mySerial.print(NUMBER_OF_ACTIVE_GPIO_OUTPUT_PINS);
-  byteCount += mySerial.print(':');
+  byteCount += bleSerial.print(GPIO_OUTPUT_PINS_AVAILABLE_RESPONSE_COMMAND);
+  byteCount += bleSerial.print(NUMBER_OF_ACTIVE_GPIO_OUTPUT_PINS);
+  byteCount += bleSerial.print(':');
   for (char i = 0; i < NUMBER_OF_ACTIVE_GPIO_OUTPUT_PINS; i++)
   {
     if (byteCount == BLE_PAYLOAD_SIZE_MAX) //When message buffer overflow happens, send the message header again
     {
       byteCount = 0;
-      byteCount += mySerial.print(GPIO_OUTPUT_PINS_AVAILABLE_RESPONSE_COMMAND);
-      byteCount += mySerial.print(NUMBER_OF_ACTIVE_GPIO_OUTPUT_PINS);
-      byteCount += mySerial.print(':');
+      byteCount += bleSerial.print(GPIO_OUTPUT_PINS_AVAILABLE_RESPONSE_COMMAND);
+      byteCount += bleSerial.print(NUMBER_OF_ACTIVE_GPIO_OUTPUT_PINS);
+      byteCount += bleSerial.print(':');
     }
-    byteCount += mySerial.print(activeGpioOutputPins[i].number);
+    byteCount += bleSerial.print(activeGpioOutputPins[i].number);
     if ((i < NUMBER_OF_ACTIVE_GPIO_OUTPUT_PINS - 1) && (i != BLE_PAYLOAD_SIZE_MAX - 1))
     {
-      byteCount += mySerial.print(',');
+      byteCount += bleSerial.print(',');
     }
     else
     {
-      byteCount += mySerial.print("");
+      byteCount += bleSerial.print("");
     }
   }
 }
 
 void processIncomingData()
 {
-  if (!strcmp(personalityRequestCommand, incomingDataCommand))
+  if (!strcmp(personalityRequestCommand, incomingDataCommand)) //Personality command
   {
     ProvideGPIOInputPersonalityDetails();
     delay(10);
     ProvideGPIOOutputPersonalityDetails();
   }
-  else if (!strcmp(digitalOutputUpdateCommand, incomingDataCommand))
+  else if (!strcmp(digitalOutputUpdateCommand, incomingDataCommand)) // Digital Output Update Command
   {
     Serial.print("Got GPIO Output update command with value: ");
-    Serial.println(extractPayloadData(1));
+    Serial.println(extractPayloadData(DIGITAL_OUTPUT_UPDATE_COMMAND_PIN_INDEX));
+    uint8_t pinNumber = extractPayloadData(DIGITAL_OUTPUT_UPDATE_COMMAND_PIN_INDEX);
+    uint8_t state = extractPayloadData(DIGITAL_OUTPUT_UPDATE_COMMAND_STATE_INDEX);
+
+    Serial.print("Got GPIO Output update command with pin value: ");
+    Serial.print(pinNumber);
+    Serial.print("and state: ");
+    Serial.println(state);
+    
+    digitalWrite(pinNumber, state);
   }
 }
 
@@ -296,15 +292,15 @@ void setup()
   Serial.println("Goodnight moon!");
 
   // set the data rate for the SoftwareSerial port
-  mySerial.begin(9600);
-  mySerial.println("Hello, world?");
+  bleSerial.begin(9600);
+  bleSerial.println("Hello, world?");
 }
 
 void loop() // run over and over
 {
   monitorInputPins();
 
-  if (mySerial.available())
+  if (bleSerial.available())
   {
     saveIncomingData();
     extractCommand();
