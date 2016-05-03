@@ -12,6 +12,8 @@
 #define INPUT_INACTIVE (0)
 #define NUMBER_OF_ACTIVE_GPIO_INPUT_PINS (sizeof(activeGpioInputPins)/sizeof(activeGpioInputPins[0]))
 #define NUMBER_OF_ACTIVE_GPIO_OUTPUT_PINS (sizeof(activeGpioOutputPins)/sizeof(activeGpioOutputPins[0]))
+#define NUMBER_OF_ACTIVE_ADC_PINS (sizeof(activeAdcPins)/sizeof(activeAdcPins[0]))
+#define ADC_VALUE_DELTA (2)
 #define INCOMING_DATA_BUFFER_SIZE (20)
 #define INCOMING_DATA_COMMAND_SIZE (15)
 #define COMMAND_SEPARATOR ':'
@@ -26,8 +28,8 @@
 
 #define GPIO_INTPUT_PINS_AVAILABLE_RESPONSE_COMMAND "PERS:INP:"
 #define GPIO_OUTPUT_PINS_AVAILABLE_RESPONSE_COMMAND "PERS:OUT:"
+#define ADC_PINS_AVAILABLE_RESPONSE_COMMAND "PERS:ADC:"
 #define PWM_PINS_AVAILABLE_RESPONSE_COMMAND "PERS:PWM:"
-#define PWM_PINS_AVAILABLE_RESPONSE_COMMAND "PERS:ADC:"
 
 SoftwareSerial bleSerial(7, 8); // RX, TX
 
@@ -49,6 +51,13 @@ typedef struct
   uint8_t number;
 } OutputPin;
 
+typedef struct
+{
+  int number;
+  char *charNumber;
+  int lastValue;
+} AdcPin;
+
 static InputPin activeGpioInputPins[] = {
   { 6, INPUT_INACTIVE },
   { 3, INPUT_INACTIVE },
@@ -56,7 +65,6 @@ static InputPin activeGpioInputPins[] = {
   { 10, INPUT_INACTIVE },
   { 4, INPUT_INACTIVE },
   { 12, INPUT_INACTIVE },
-
 };
 
 static OutputPin activeGpioOutputPins[] = {
@@ -64,6 +72,12 @@ static OutputPin activeGpioOutputPins[] = {
   { 11 },
   { 9 },
   { 13 }
+};
+
+static AdcPin activeAdcPins[] = {
+  { A0, "A0", INPUT_INACTIVE },
+//  { A1, "A1", INPUT_INACTIVE },
+  { A2, "A2", INPUT_INACTIVE }
 };
 
 void setGpioInputs()
@@ -91,6 +105,15 @@ void SendGPIOInputState(uint8_t pinNumber, bool state)
   bleSerial.print(state);
 }
 
+void SendAdcInputState(char *pinNumber, int value)
+{
+  bleSerial.print("ADC:");
+  bleSerial.print(pinNumber);
+  bleSerial.print(":");
+  bleSerial.print(value);
+  delay(5);
+}
+
 void monitorInputPins()
 {
   for (char i = 0; i < NUMBER_OF_ACTIVE_GPIO_INPUT_PINS; i++)
@@ -100,6 +123,19 @@ void monitorInputPins()
     {
       SendGPIOInputState(activeGpioInputPins[i].number, currentState);
       activeGpioInputPins[i].lastState = currentState;
+    }
+  }
+}
+
+void monitorAdcPins()
+{
+  for (char i = 0; i < NUMBER_OF_ACTIVE_ADC_PINS; i++)
+  {
+    int currentValue = analogRead(activeAdcPins[i].number);
+    if (abs(currentValue - activeAdcPins[i].lastValue) > ADC_VALUE_DELTA)
+    {
+      SendAdcInputState(activeAdcPins[i].charNumber, currentValue);
+      activeAdcPins[i].lastValue = currentValue;  
     }
   }
 }
@@ -114,19 +150,6 @@ void saveIncomingData()
     incomingDataIndex++;
     delay(5);
   }
-}
-
-uint8_t getNumberOfParams()
-{
-  uint8_t paramCounter = 0;
-  for (uint8_t i = 0; i < INCOMING_DATA_BUFFER_SIZE; i++)
-  {
-    if (incomingData[i] == COMMAND_SEPARATOR)
-    {
-      paramCounter++;
-    }
-  }
-  return paramCounter;
 }
 
 void extractCommand()
@@ -240,8 +263,40 @@ void ProvideGPIOOutputPersonalityDetails()
       byteCount += bleSerial.print(NUMBER_OF_ACTIVE_GPIO_OUTPUT_PINS);
       byteCount += bleSerial.print(':');
     }
+    
     byteCount += bleSerial.print(activeGpioOutputPins[i].number);
+    
     if ((i < NUMBER_OF_ACTIVE_GPIO_OUTPUT_PINS - 1) && (i != BLE_PAYLOAD_SIZE_MAX - 1))
+    {
+      byteCount += bleSerial.print(',');
+    }
+    else
+    {
+      byteCount += bleSerial.print("");
+    }
+  }
+}
+
+void ProvideAdcInputPersonalityDetails()
+{
+  uint8_t byteCount = 0;
+
+  byteCount += bleSerial.print(ADC_PINS_AVAILABLE_RESPONSE_COMMAND);
+  byteCount += bleSerial.print(NUMBER_OF_ACTIVE_ADC_PINS);
+  byteCount += bleSerial.print(':');
+  for (uint8_t i = 0; i < NUMBER_OF_ACTIVE_ADC_PINS; i++)
+  {
+    if (byteCount >= BLE_PAYLOAD_SIZE_MAX) //When message buffer overflow happens, send the message header again
+    {
+      byteCount = 0;
+      byteCount += bleSerial.print(ADC_PINS_AVAILABLE_RESPONSE_COMMAND);
+      byteCount += bleSerial.print(NUMBER_OF_ACTIVE_ADC_PINS);
+      byteCount += bleSerial.print(':');
+    }
+    
+    byteCount += bleSerial.print(activeAdcPins[i].charNumber);
+    
+    if ((i < NUMBER_OF_ACTIVE_ADC_PINS - 1) && (i != BLE_PAYLOAD_SIZE_MAX - 1))
     {
       byteCount += bleSerial.print(',');
     }
@@ -259,19 +314,15 @@ void processIncomingData()
     ProvideGPIOInputPersonalityDetails();
     delay(10);
     ProvideGPIOOutputPersonalityDetails();
+    delay(10);
+    ProvideAdcInputPersonalityDetails();
+    delay(10);
   }
   else if (!strcmp(digitalOutputUpdateCommand, incomingDataCommand)) // Digital Output Update Command
   {
-    Serial.print("Got GPIO Output update command with value: ");
-    Serial.println(extractPayloadData(DIGITAL_OUTPUT_UPDATE_COMMAND_PIN_INDEX));
     uint8_t pinNumber = extractPayloadData(DIGITAL_OUTPUT_UPDATE_COMMAND_PIN_INDEX);
     uint8_t state = extractPayloadData(DIGITAL_OUTPUT_UPDATE_COMMAND_STATE_INDEX);
 
-    Serial.print("Got GPIO Output update command with pin value: ");
-    Serial.print(pinNumber);
-    Serial.print("and state: ");
-    Serial.println(state);
-    
     digitalWrite(pinNumber, state);
   }
 }
@@ -285,10 +336,6 @@ void setup()
 
   // Open serial communications and wait for port to open:
   Serial.begin(9600);
-  while (!Serial) {
-    ; // wait for serial port to connect. Needed for Leonardo only
-  }
-
   Serial.println("Goodnight moon!");
 
   // set the data rate for the SoftwareSerial port
@@ -299,6 +346,7 @@ void setup()
 void loop() // run over and over
 {
   monitorInputPins();
+  monitorAdcPins();
 
   if (bleSerial.available())
   {
